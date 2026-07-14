@@ -294,36 +294,35 @@ def construir_mensaje(cfg, nuevos, reaparecidos):
 
 # ---------------------------------------------------------------- ciclo
 
-# Si un producto estuvo ausente más de este tiempo y vuelve a aparecer,
-# se avisa como "disponible de nuevo"
-UMBRAL_REAPARICION_SEG = 2 * 3600
-
-
 def una_revision(cfg, sesion, estado, primera_vez):
     productos = revisar_tienda(sesion, cfg)
     ahora = datetime.now()
+    ids_actuales = set(productos)
 
+    # Novedad por PRESENCIA (no por tiempo): esto es robusto aunque las
+    # revisiones no sean parejas (ej. GitHub gratis corre a ratos).
+    #   - nuevo       = nunca antes visto
+    #   - reaparecido = estaba marcado como ausente y ahora volvió
     nuevos = {}
     reaparecidos = {}
     for pid, info in productos.items():
         previo = estado.get(pid)
         if previo is None:
             nuevos[pid] = info
-        else:
-            try:
-                ultimo = datetime.fromisoformat(previo["visto"])
-                ausente = (ahora - ultimo).total_seconds()
-            except (KeyError, ValueError):
-                ausente = 0
-            if ausente > UMBRAL_REAPARICION_SEG:
-                reaparecidos[pid] = info
+        elif previo.get("presente") is False:
+            reaparecidos[pid] = info
 
+    # Los que están ahora → presentes; los que estaban y ya no → ausentes.
     for pid, info in productos.items():
         estado[pid] = {
             "nombre": info["nombre"],
             "url": info["url"],
             "visto": ahora.isoformat(timespec="seconds"),
+            "presente": True,
         }
+    for pid in estado:
+        if pid not in ids_actuales:
+            estado[pid]["presente"] = False
     guardar_estado(estado)
 
     if primera_vez:
