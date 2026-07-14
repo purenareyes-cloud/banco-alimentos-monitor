@@ -1,0 +1,6 @@
+# NO subir credenciales ni basura local
+config.json
+monitor.log
+debug_shop.html
+__pycache__/
+*.pyc

@@ -1,0 +1,50 @@
+name: Monitor Banco de Alimentos
+
+on:
+  schedule:
+    # Cada 5 minutos (GitHub no garantiza el minuto exacto en cuentas gratis)
+    - cron: "*/5 * * * *"
+  workflow_dispatch:  # permite correrlo a mano desde la pestaña Actions
+
+# Necesario para poder guardar (commit) el estado entre corridas
+permissions:
+  contents: write
+
+# Evita que dos corridas se pisen
+concurrency:
+  group: monitor-banco
+  cancel-in-progress: false
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Revisar la tienda
+        env:
+          BDA_USER: ${{ secrets.BDA_USER }}
+          BDA_PASS: ${{ secrets.BDA_PASS }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python check_once.py
+
+      - name: Guardar el estado (productos vistos)
+        run: |
+          git config user.name "monitor-bot"
+          git config user.email "monitor-bot@users.noreply.github.com"
+          if ! git diff --quiet productos_vistos.json; then
+            git add productos_vistos.json
+            git commit -m "Actualizar productos vistos [skip ci]"
+            git push
+          else
+            echo "Sin cambios en el estado."
+          fi
